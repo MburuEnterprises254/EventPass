@@ -31,6 +31,7 @@ export default function ShowFormScreen() {
   const [date, setDate] = useState(existing?.date ?? '');
   const [time, setTime] = useState(existing?.time ?? '');
   const [price, setPrice] = useState(existing ? existing.price.toString() : '');
+  const [totalSeats, setTotalSeats] = useState(existing ? existing.totalSeats.toString() : '50');
 
   const isEdit = !!existing;
 
@@ -44,6 +45,11 @@ export default function ShowFormScreen() {
       Alert.alert('Invalid Price', 'Please enter a valid price');
       return;
     }
+    const seatsNum = parseInt(totalSeats.trim(), 10);
+    if (isNaN(seatsNum) || seatsNum < 1 || seatsNum > 260) {
+      Alert.alert('Invalid Seats', 'Total seats must be between 1 and 260');
+      return;
+    }
 
     if (isEdit && existing) {
       updateShow({
@@ -54,6 +60,7 @@ export default function ShowFormScreen() {
         date: date.trim(),
         time: time.trim(),
         price: priceNum,
+        totalSeats: seatsNum,
       });
     } else {
       addShow({
@@ -63,6 +70,7 @@ export default function ShowFormScreen() {
         date: date.trim(),
         time: time.trim(),
         price: priceNum,
+        totalSeats: seatsNum,
       });
     }
 
@@ -76,6 +84,7 @@ export default function ShowFormScreen() {
     { label: 'Date (YYYY-MM-DD)', value: date, setter: setDate, placeholder: 'e.g. 2026-07-18', multiline: false },
     { label: 'Time', value: time, setter: setTime, placeholder: 'e.g. 7:00 PM', multiline: false },
     { label: 'Ticket Price (KES)', value: price, setter: setPrice, placeholder: 'e.g. 1000', multiline: false },
+    { label: 'Total Seats in Theatre', value: totalSeats, setter: setTotalSeats, placeholder: 'e.g. 50', multiline: false },
     { label: 'Description', value: description, setter: setDescription, placeholder: 'Brief description of the show...', multiline: true },
   ];
 

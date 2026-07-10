@@ -125,6 +125,7 @@ export default function SeatsScreen() {
           bookedSeats={bookedSeats}
           selectedSeats={selectedSeats}
           onSeatPress={handleSeatPress}
+          totalSeats={show.totalSeats}
         />
       </ScrollView>
 

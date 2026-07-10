@@ -20,6 +20,7 @@ const SEED_SHOWS: Show[] = [
     date: '2026-07-18',
     time: '7:00 PM',
     price: 1000,
+    totalSeats: 32,
     colorIndex: 0,
   },
   {
@@ -31,6 +32,7 @@ const SEED_SHOWS: Show[] = [
     date: '2026-07-19',
     time: '6:00 PM',
     price: 800,
+    totalSeats: 40,
     colorIndex: 1,
   },
   {
@@ -42,6 +44,7 @@ const SEED_SHOWS: Show[] = [
     date: '2026-07-20',
     time: '5:00 PM',
     price: 1200,
+    totalSeats: 50,
     colorIndex: 2,
   },
   {
@@ -53,6 +56,7 @@ const SEED_SHOWS: Show[] = [
     date: '2026-07-21',
     time: '8:00 PM',
     price: 900,
+    totalSeats: 60,
     colorIndex: 3,
   },
   {
@@ -64,6 +68,7 @@ const SEED_SHOWS: Show[] = [
     date: '2026-07-25',
     time: '7:30 PM',
     price: 750,
+    totalSeats: 30,
     colorIndex: 4,
   },
 ];
@@ -187,10 +192,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const getAvailableSeats = useCallback(
     (showId: string): number => {
-      const totalSeats = 32; // 4 rows × 8 seats
-      return totalSeats - getBookedSeats(showId).length;
+      const show = shows.find((s) => s.id === showId);
+      const total = show?.totalSeats ?? 32;
+      return Math.max(0, total - getBookedSeats(showId).length);
     },
-    [getBookedSeats],
+    [shows, getBookedSeats],
   );
 
   const createBooking = useCallback(

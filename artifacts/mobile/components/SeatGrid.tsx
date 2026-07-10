@@ -2,16 +2,14 @@ import React from 'react';
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-const ROWS = ['A', 'B', 'C', 'D'];
-const COLS = [1, 2, 3, 4, 5, 6, 7, 8];
+const SEATS_PER_ROW = 10;
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const SEAT_SIZE = Math.floor((SCREEN_WIDTH - 80) / 8);
-const SEAT_GAP = 3;
 
 interface Props {
   bookedSeats: string[];
   selectedSeats: string[];
   onSeatPress: (seatId: string) => void;
+  totalSeats: number;
 }
 
 type SeatStatus = 'available' | 'booked' | 'selected';
@@ -28,7 +26,25 @@ const COLORS: Record<SeatStatus, { bg: string; text: string; border: string }> =
   selected: { bg: '#E8B84B', text: '#09090E', border: '#E8B84B' },
 };
 
-export default function SeatGrid({ bookedSeats, selectedSeats, onSeatPress }: Props) {
+function buildRows(totalSeats: number): { row: string; cols: number[] }[] {
+  const numRows = Math.ceil(totalSeats / SEATS_PER_ROW);
+  return Array.from({ length: numRows }, (_, rowIdx) => {
+    const rowLabel = String.fromCharCode(65 + rowIdx); // A, B, C…
+    const seatsInRow =
+      rowIdx < numRows - 1
+        ? SEATS_PER_ROW
+        : totalSeats - rowIdx * SEATS_PER_ROW;
+    return { row: rowLabel, cols: Array.from({ length: seatsInRow }, (_, i) => i + 1) };
+  });
+}
+
+export default function SeatGrid({ bookedSeats, selectedSeats, onSeatPress, totalSeats }: Props) {
+  const rows = buildRows(totalSeats);
+  const colsInFirstRow = rows[0]?.cols.length ?? SEATS_PER_ROW;
+  // Size seats to fit the widest row
+  const SEAT_SIZE = Math.floor((SCREEN_WIDTH - 80) / Math.min(colsInFirstRow, SEATS_PER_ROW));
+  const SEAT_GAP = 3;
+
   function handlePress(seatId: string, status: SeatStatus) {
     if (status === 'booked') return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -45,12 +61,12 @@ export default function SeatGrid({ bookedSeats, selectedSeats, onSeatPress }: Pr
       </View>
 
       {/* Seat Grid */}
-      <View style={styles.grid}>
-        {ROWS.map((row) => (
+      <View style={[styles.grid, { gap: SEAT_GAP + 2 }]}>
+        {rows.map(({ row, cols }) => (
           <View key={row} style={styles.rowContainer}>
             <Text style={styles.rowLabel}>{row}</Text>
-            <View style={styles.row}>
-              {COLS.map((col) => {
+            <View style={[styles.row, { gap: SEAT_GAP }]}>
+              {cols.map((col) => {
                 const seatId = `${row}${col}`;
                 const status = getSeatStatus(seatId, bookedSeats, selectedSeats);
                 const c = COLORS[status];
@@ -71,7 +87,7 @@ export default function SeatGrid({ bookedSeats, selectedSeats, onSeatPress }: Pr
                     activeOpacity={status === 'booked' ? 1 : 0.7}
                     disabled={status === 'booked'}
                   >
-                    <Text style={[styles.seatText, { color: c.text, fontSize: SEAT_SIZE < 36 ? 9 : 10 }]}>
+                    <Text style={[styles.seatText, { color: c.text, fontSize: SEAT_SIZE < 32 ? 8 : SEAT_SIZE < 36 ? 9 : 10 }]}>
                       {col}
                     </Text>
                   </TouchableOpacity>
@@ -122,7 +138,6 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
   },
   grid: {
-    gap: SEAT_GAP + 2,
     paddingHorizontal: 16,
   },
   rowContainer: {
@@ -139,7 +154,6 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    gap: SEAT_GAP,
   },
   seat: {
     borderRadius: 4,

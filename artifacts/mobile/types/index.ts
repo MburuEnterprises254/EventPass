@@ -6,6 +6,7 @@ export interface Show {
   date: string; // "2026-07-18"
   time: string; // "7:00 PM"
   price: number;
+  totalSeats: number;
   colorIndex: number;
 }
 
