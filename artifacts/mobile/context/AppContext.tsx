@@ -2,11 +2,11 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Booking, Payment, Show } from '@/types';
 
-const SHOWS_KEY = 'facereels_shows';
-const BOOKINGS_KEY = 'facereels_bookings';
-const PAYMENTS_KEY = 'facereels_payments';
-const SEEDED_KEY = 'facereels_seeded';
-const ADMIN_KEY = 'facereels_admin';
+const SHOWS_KEY = 'furnace_shows';
+const BOOKINGS_KEY = 'furnace_bookings';
+const PAYMENTS_KEY = 'furnace_payments';
+const SEEDED_KEY = 'furnace_seeded';
+const ADMIN_KEY = 'furnace_admin';
 
 const ADMIN_PIN = '1234';
 

@@ -147,7 +147,7 @@ function AdminDashboard() {
       <View style={styles.dashHeader}>
         <View>
           <Text style={[styles.dashTitle, { color: colors.foreground }]}>Admin Panel</Text>
-          <Text style={[styles.dashSub, { color: colors.mutedForeground }]}>FACEREELS THEATRE</Text>
+          <Text style={[styles.dashSub, { color: colors.mutedForeground }]}>FURNACE SHOWS</Text>
         </View>
         <TouchableOpacity
           style={[styles.logoutBtn, { backgroundColor: colors.secondary }]}

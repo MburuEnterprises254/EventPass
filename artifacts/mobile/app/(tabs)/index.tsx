@@ -24,7 +24,7 @@ function HeroBanner() {
       style={[styles.hero, { paddingTop: Platform.OS === 'web' ? 67 + 20 : insets.top + 20 }]}
     >
       <Text style={styles.heroTag}>✦ NAIROBI'S PREMIER THEATRE</Text>
-      <Text style={styles.heroTitle}>FACEREELS{'\n'}THEATRE</Text>
+      <Text style={styles.heroTitle}>FURNACE{'\n'}SHOWS</Text>
       <Text style={styles.heroSub}>
         Live performances that move, challenge, and inspire
       </Text>

@@ -57,7 +57,7 @@ export default function ReceiptScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const text = `
 ━━━━━━━━━━━━━━━━━━━━━━━━
-FACEREELS THEATRE
+FURNACE SHOWS
 BOOKING RECEIPT
 ━━━━━━━━━━━━━━━━━━━━━━━━
 Receipt No:   ${booking.receiptNo}
@@ -76,9 +76,9 @@ Amount Paid:  KES ${booking.amount.toLocaleString()}
 M-Pesa Code:  ${booking.mpesaCode}
 Status:       ${status.label}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-Thank you for booking with FaceReels Theatre!
+Thank you for booking with Furnace Shows!
 `.trim();
-    await Share.share({ message: text, title: 'FaceReels Theatre — Booking Receipt' });
+    await Share.share({ message: text, title: 'Furnace Shows — Booking Receipt' });
   }
 
   return (
@@ -116,7 +116,7 @@ Thank you for booking with FaceReels Theatre!
         <View style={[styles.receiptCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {/* Theatre Header */}
           <View style={styles.receiptHeader}>
-            <Text style={[styles.theatreName, { color: colors.primary }]}>FACEREELS THEATRE</Text>
+            <Text style={[styles.theatreName, { color: colors.primary }]}>FURNACE SHOWS</Text>
             <Text style={[styles.receiptTitle, { color: colors.mutedForeground }]}>BOOKING RECEIPT</Text>
           </View>
 
@@ -194,7 +194,7 @@ Thank you for booking with FaceReels Theatre!
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
           <Text style={[styles.thankYou, { color: colors.mutedForeground }]}>
-            Thank you for choosing FaceReels Theatre!
+            Thank you for choosing Furnace Shows!
           </Text>
         </View>
       </ScrollView>
