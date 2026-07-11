@@ -5,6 +5,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AppProvider } from '@/context/AppContext';
+import { AuthProvider, useAuth } from '@/lib/auth';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -12,35 +13,57 @@ import {
   Inter_700Bold,
   useFonts,
 } from '@expo-google-fonts/inter';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+function AuthRedirect() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+    const onLoginScreen = segments[0] === 'login';
+    if (!isAuthenticated && !onLoginScreen) {
+      router.replace('/login');
+    } else if (isAuthenticated && onLoginScreen) {
+      router.replace('/');
+    }
+  }, [isAuthenticated, isLoading, segments, router]);
+
+  return null;
+}
+
 function RootLayoutNav() {
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: '#09090E' },
-        headerTintColor: '#E8B84B',
-        headerTitleStyle: {
-          color: '#F0EFE8',
-          fontFamily: 'Inter_600SemiBold',
-          fontSize: 17,
-        },
-        headerBackTitle: 'Back',
-        contentStyle: { backgroundColor: '#09090E' },
-      }}
-    >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="show/[id]" options={{ title: '', headerTransparent: true }} />
-      <Stack.Screen name="seats/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="payment/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="receipt/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="admin-panel" options={{ headerShown: false }} />
-    </Stack>
+    <>
+      <AuthRedirect />
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: '#09090E' },
+          headerTintColor: '#E8B84B',
+          headerTitleStyle: {
+            color: '#F0EFE8',
+            fontFamily: 'Inter_600SemiBold',
+            fontSize: 17,
+          },
+          headerBackTitle: 'Back',
+          contentStyle: { backgroundColor: '#09090E' },
+        }}
+      >
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="show/[id]" options={{ title: '', headerTransparent: true }} />
+        <Stack.Screen name="seats/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="payment/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="receipt/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="admin-panel" options={{ headerShown: false }} />
+      </Stack>
+    </>
   );
 }
 
@@ -64,13 +87,15 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <AppProvider>
-            <GestureHandlerRootView>
-              <KeyboardProvider>
-                <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </AppProvider>
+          <AuthProvider>
+            <AppProvider>
+              <GestureHandlerRootView>
+                <KeyboardProvider>
+                  <RootLayoutNav />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </AppProvider>
+          </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

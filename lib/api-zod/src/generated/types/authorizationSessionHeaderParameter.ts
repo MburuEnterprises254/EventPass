@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+/**
+ * Bearer token for mobile authentication
+ */
+export type AuthorizationSessionHeaderParameter = string;
