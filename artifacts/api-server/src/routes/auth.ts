@@ -1,12 +1,12 @@
-import { db, usersTable } from '@workspace/db';
-import { eq } from 'drizzle-orm';
-import { Router, type IRouter, type Request, type Response } from 'express';
-import { hashPassword, signToken, verifyPassword } from '../lib/auth';
+import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { Router, type IRouter, type Request, type Response } from "express";
+import { hashPassword, signToken, verifyPassword } from "../lib/auth";
 
 const router: IRouter = Router();
 
 /* ─── Register ─────────────────────────────────────────────────────────── */
-router.post('/auth/register', async (req: Request, res: Response) => {
+router.post("/auth/register", async (req: Request, res: Response) => {
   const { firstName, lastName, email, password } = req.body as {
     firstName?: string;
     lastName?: string;
@@ -15,11 +15,12 @@ router.post('/auth/register', async (req: Request, res: Response) => {
   };
 
   if (!email || !password) {
-    res.status(400).json({ error: 'Email and password are required.' });
+    res.status(400).json({ error: "Email and password are required." });
     return;
   }
+
   if (password.length < 6) {
-    res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    res.status(400).json({ error: "Password must be at least 6 characters." });
     return;
   }
 
@@ -30,11 +31,14 @@ router.post('/auth/register', async (req: Request, res: Response) => {
     .limit(1);
 
   if (existing.length > 0) {
-    res.status(409).json({ error: 'An account with that email already exists.' });
+    res
+      .status(409)
+      .json({ error: "An account with that email already exists." });
     return;
   }
 
   const passwordHash = await hashPassword(password);
+
   const [user] = await db
     .insert(usersTable)
     .values({
@@ -52,21 +56,21 @@ router.post('/auth/register', async (req: Request, res: Response) => {
     user: {
       id: user.id,
       email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      firstName: user.firstName ?? "", // Fallback to empty string if null
+      lastName: user.lastName ?? "", // Fallback to empty string if null
     },
   });
 });
 
 /* ─── Login ─────────────────────────────────────────────────────────────── */
-router.post('/auth/login', async (req: Request, res: Response) => {
+router.post("/auth/login", async (req: Request, res: Response) => {
   const { email, password } = req.body as {
     email?: string;
     password?: string;
   };
 
   if (!email || !password) {
-    res.status(400).json({ error: 'Email and password are required.' });
+    res.status(400).json({ error: "Email and password are required." });
     return;
   }
 
@@ -77,13 +81,13 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     .limit(1);
 
   if (!user) {
-    res.status(401).json({ error: 'Invalid email or password.' });
+    res.status(401).json({ error: "Invalid email or password." });
     return;
   }
 
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) {
-    res.status(401).json({ error: 'Invalid email or password.' });
+    res.status(401).json({ error: "Invalid email or password." });
     return;
   }
 
@@ -94,14 +98,14 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     user: {
       id: user.id,
       email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      firstName: user.firstName ?? "", // Fallback to empty string if null
+      lastName: user.lastName ?? "", // Fallback to empty string if null
     },
   });
 });
 
 /* ─── Me ────────────────────────────────────────────────────────────────── */
-router.get('/auth/me', async (req: Request, res: Response) => {
+router.get("/auth/me", async (req: Request, res: Response) => {
   if (!req.userId) {
     res.json({ user: null });
     return;
@@ -122,8 +126,8 @@ router.get('/auth/me', async (req: Request, res: Response) => {
     user: {
       id: user.id,
       email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      firstName: user.firstName ?? "", // Fallback to empty string if null
+      lastName: user.lastName ?? "", // Fallback to empty string if null
     },
   });
 });
