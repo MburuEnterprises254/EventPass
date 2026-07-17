@@ -1,7 +1,8 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import pinoHttp from "pino-http";
+// 1. Fixed the import statement to use named import
+import { pinoHttp } from "pino-http";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -12,14 +13,16 @@ app.use(
   pinoHttp({
     logger,
     serializers: {
-      req(req) {
+      // 2. Added explicit Request type to req
+      req(req: Request) {
         return {
           id: req.id,
           method: req.method,
           url: req.url?.split("?")[0],
         };
       },
-      res(res) {
+      // 3. Added explicit Response type to res
+      res(res: Response) {
         return {
           statusCode: res.statusCode,
         };
@@ -27,12 +30,12 @@ app.use(
     },
   }),
 );
+
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(authMiddleware);
-
 app.use("/api", router);
 
 export default app;
