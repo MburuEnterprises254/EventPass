@@ -49,15 +49,16 @@ router.post("/auth/register", async (req: Request, res: Response) => {
     })
     .returning();
 
-  const token = signToken({ userId: user.id, email: user.email });
+  // Added '!' to assert user.email is not null
+  const token = signToken({ userId: user.id, email: user.email! });
 
   res.status(201).json({
     token,
     user: {
       id: user.id,
       email: user.email,
-      firstName: user.firstName ?? "", // Fallback to empty string if null
-      lastName: user.lastName ?? "", // Fallback to empty string if null
+      firstName: user.firstName ?? "",
+      lastName: user.lastName ?? "",
     },
   });
 });
@@ -91,15 +92,16 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     return;
   }
 
-  const token = signToken({ userId: user.id, email: user.email });
+  // Added '!' to assert user.email is not null
+  const token = signToken({ userId: user.id, email: user.email! });
 
   res.json({
     token,
     user: {
       id: user.id,
       email: user.email,
-      firstName: user.firstName ?? "", // Fallback to empty string if null
-      lastName: user.lastName ?? "", // Fallback to empty string if null
+      firstName: user.firstName ?? "",
+      lastName: user.lastName ?? "",
     },
   });
 });
@@ -126,8 +128,8 @@ router.get("/auth/me", async (req: Request, res: Response) => {
     user: {
       id: user.id,
       email: user.email,
-      firstName: user.firstName ?? "", // Fallback to empty string if null
-      lastName: user.lastName ?? "", // Fallback to empty string if null
+      firstName: user.firstName ?? "",
+      lastName: user.lastName ?? "",
     },
   });
 });
