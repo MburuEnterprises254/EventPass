@@ -27,10 +27,10 @@ function AuthRedirect() {
 
   useEffect(() => {
     if (isLoading) return;
-    const onLoginScreen = segments[0] === 'login';
-    if (!isAuthenticated && !onLoginScreen) {
+    const onPublicScreen = segments[0] === 'login' || segments[0] === 'register';
+    if (!isAuthenticated && !onPublicScreen) {
       router.replace('/login');
-    } else if (isAuthenticated && onLoginScreen) {
+    } else if (isAuthenticated && onPublicScreen) {
       router.replace('/');
     }
   }, [isAuthenticated, isLoading, segments, router]);
