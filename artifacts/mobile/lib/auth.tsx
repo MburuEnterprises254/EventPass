@@ -6,180 +6,154 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
-import * as AuthSession from 'expo-auth-session';
 import * as SecureStore from 'expo-secure-store';
-import * as WebBrowser from 'expo-web-browser';
 
-WebBrowser.maybeCompleteAuthSession();
+const TOKEN_KEY = 'furnace_auth_token';
 
-const AUTH_TOKEN_KEY = 'auth_session_token';
-const ISSUER_URL =
-  process.env.EXPO_PUBLIC_ISSUER_URL ?? 'https://replit.com/oidc';
+function getApiBase(): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (domain) return `https://${domain}`;
+  return '';
+}
 
-interface User {
+export interface AuthUser {
   id: string;
-  email: string | null;
+  email: string;
   firstName: string | null;
   lastName: string | null;
-  profileImageUrl: string | null;
 }
 
 interface AuthContextValue {
-  user: User | null;
+  user: AuthUser | null;
+  token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: () => Promise<void>;
+  login: (email: string, password: string) => Promise<{ error?: string }>;
+  register: (
+    firstName: string,
+    lastName: string,
+    email: string,
+    password: string,
+  ) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
+  token: null,
   isLoading: true,
   isAuthenticated: false,
-  login: async () => {},
+  login: async () => ({}),
+  register: async () => ({}),
   logout: async () => {},
 });
 
-function getApiBaseUrl(): string {
-  if (process.env.EXPO_PUBLIC_DOMAIN) {
-    return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
-  }
-  return '';
-}
-
-function getClientId(): string {
-  return process.env.EXPO_PUBLIC_REPL_ID || '';
+async function apiFetch(
+  path: string,
+  options: RequestInit = {},
+  token?: string | null,
+): Promise<Response> {
+  const base = getApiBase();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return fetch(`${base}/api${path}`, { ...options, headers });
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const discovery = AuthSession.useAutoDiscovery(ISSUER_URL);
-
-  const redirectUri = AuthSession.makeRedirectUri();
-
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: getClientId(),
-      scopes: ['openid', 'email', 'profile', 'offline_access'],
-      redirectUri,
-      prompt: AuthSession.Prompt.Login,
-    },
-    discovery,
-  );
-
-  const fetchUser = useCallback(async () => {
-    try {
-      const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
-      if (!token) {
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
-
-      const apiBase = getApiBaseUrl();
-      const res = await fetch(`${apiBase}/api/auth/user`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-
-      if (data.user) {
-        setUser(data.user);
-      } else {
-        await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-        setUser(null);
-      }
-    } catch {
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
+  // Restore session from secure storage on mount
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
-
-  useEffect(() => {
-    if (response?.type !== 'success' || !request?.codeVerifier) return;
-
-    const { code, state } = response.params;
-
     (async () => {
       try {
-        const apiBase = getApiBaseUrl();
-        if (!apiBase) {
-          console.error('API base URL is not configured.');
-          return;
-        }
+        const stored = await SecureStore.getItemAsync(TOKEN_KEY);
+        if (!stored) { setIsLoading(false); return; }
 
-        const exchangeRes = await fetch(
-          `${apiBase}/api/mobile-auth/token-exchange`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              code,
-              code_verifier: request.codeVerifier,
-              redirect_uri: redirectUri,
-              state,
-              nonce: request.nonce,
-            }),
-          },
-        );
+        const res = await apiFetch('/auth/me', {}, stored);
+        const data = await res.json();
 
-        if (!exchangeRes.ok) {
-          console.error('Token exchange failed:', exchangeRes.status);
-          setIsLoading(false);
-          return;
+        if (data.user) {
+          setToken(stored);
+          setUser(data.user);
+        } else {
+          await SecureStore.deleteItemAsync(TOKEN_KEY);
         }
-
-        const data = await exchangeRes.json();
-        if (data.token) {
-          await SecureStore.setItemAsync(AUTH_TOKEN_KEY, data.token);
-          setIsLoading(true);
-          await fetchUser();
-        }
-      } catch (err) {
-        console.error('Token exchange error:', err);
+      } catch {
+        // network error — clear token to be safe
+        await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+      } finally {
         setIsLoading(false);
       }
     })();
-  }, [response, request, redirectUri, fetchUser]);
+  }, []);
 
-  const login = useCallback(async () => {
-    try {
-      await promptAsync();
-    } catch (err) {
-      console.error('Login error:', err);
-    }
-  }, [promptAsync]);
+  const login = useCallback(
+    async (email: string, password: string): Promise<{ error?: string }> => {
+      try {
+        const res = await apiFetch('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) return { error: data.error ?? 'Login failed.' };
+
+        await SecureStore.setItemAsync(TOKEN_KEY, data.token);
+        setToken(data.token);
+        setUser(data.user);
+        return {};
+      } catch {
+        return { error: 'Could not connect to the server. Try again.' };
+      }
+    },
+    [],
+  );
+
+  const register = useCallback(
+    async (
+      firstName: string,
+      lastName: string,
+      email: string,
+      password: string,
+    ): Promise<{ error?: string }> => {
+      try {
+        const res = await apiFetch('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({ firstName, lastName, email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) return { error: data.error ?? 'Registration failed.' };
+
+        await SecureStore.setItemAsync(TOKEN_KEY, data.token);
+        setToken(data.token);
+        setUser(data.user);
+        return {};
+      } catch {
+        return { error: 'Could not connect to the server. Try again.' };
+      }
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
-    try {
-      const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
-      if (token) {
-        const apiBase = getApiBaseUrl();
-        await fetch(`${apiBase}/api/mobile-auth/logout`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-    } catch {
-    } finally {
-      await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-      setUser(null);
-    }
+    await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+    setToken(null);
+    setUser(null);
   }, []);
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        token,
         isLoading,
         isAuthenticated: !!user,
         login,
+        register,
         logout,
       }}
     >
