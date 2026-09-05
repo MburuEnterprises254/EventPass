@@ -1,0 +1,429 @@
+// EventPass — Prisma data model (foundation milestone)
+//
+// Multi-tenant event ticketing platform. This schema models the full domain so
+// later milestones (organizer flow, customer flow, payments, QR check-in,
+// dashboards, fraud monitoring) build on real structure.
+//
+// A note on auth: authentication is handled by Supabase Auth (auth.users). The
+// `User` model is the application-level profile that maps 1:1 to a Supabase
+// user via `User.supabaseId` (unique). The `role` column on `User` drives
+// role-based access control, enforced server-side (see src/lib/auth/requireRole).
+// Set the role on signup (default CUSTOMER) and escalate with the seed script.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Enums
+// ────────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  PLATFORM_ADMIN
+  ORGANIZER
+  STAFF
+  CUSTOMER
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  SOLD_OUT
+}
+
+enum SeatingKind {
+  GENERAL_ADMISSION
+  RESERVED
+}
+
+enum TicketStatus {
+  RESERVED
+  PAID
+  CHECKED_IN
+  REFUNDED
+  VOID
+}
+
+enum SeatStatus {
+  AVAILABLE
+  HELD
+  RESERVED
+  SOLD
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  MPESA
+  STRIPE
+  CARD
+  OTHER
+}
+
+enum CheckInOutcome {
+  VALID
+  ALREADY_USED
+  INVALID
+  NOT_PAID
+  WRONG_EVENT
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSED
+}
+
+enum NotificationType {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Models
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Application-level user profile. Maps 1:1 to a Supabase Auth user.
+model User {
+  id           String   @id @default(cuid())
+  supabaseId   String?  @unique
+  email        String   @unique
+  passwordHash String? // reserved for future non-Supabase flows; never store raw passwords
+  name         String?
+  phone        String?
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  organizer     Organizer? // inverse of Organizer.user; the FK lives on Organizer.userId
+  orders        Order[]
+  requestedRefunds Refund[]   @relation("RefundRequester")
+  checkIns      CheckIn[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+
+  @@index([email])
+}
+
+/// An event organizer (cinema, theatre, conference, concert, community org).
+model Organizer {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  name        String
+  description String?
+  website     String?
+  contactEmail String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id])
+  venues   Venue[]
+  events   Event[]
+
+  @@index([userId])
+}
+
+/// A physical venue an organizer owns and defines seating/sections for.
+model Venue {
+  id          String   @id @default(cuid())
+  organizerId String
+  name        String
+  address     String?
+  city        String?
+  country     String?
+  timezone    String?
+  capacity    Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizer Organizer       @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  sections  VenueSection[]
+  events    Event[]
+
+  @@index([organizerId])
+}
+
+/// A section of a venue (Orchestra, Balcony, GA Floor, Stage Left, ...).
+/// A section may be general admission or reserved seating.
+model VenueSection {
+  id      String   @id @default(cuid())
+  venueId String
+  name    String
+  kind    SeatingKind @default(GENERAL_ADMISSION)
+  rows    Int? // number of rows for reserved sections
+  columns Int? // seats per row for reserved sections
+  capacity Int? // GA sections: fixed standing capacity; reserved sections: derived from seats
+  price   Decimal?   @db.Decimal(10, 2) // optional default price for this section
+  createdAt DateTime @default(now())
+
+  venue Venue   @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  seats Seat[]
+
+  @@index([venueId])
+}
+
+/// An individual reserved seat. Null for general-admission venues.
+model Seat {
+  id        String   @id @default(cuid())
+  sectionId String
+  label     String // e.g. "A1"
+  row       String? // e.g. "A"
+  status    SeatStatus @default(AVAILABLE)
+  priceModifier Decimal? @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  section VenueSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  ticket  Ticket?
+
+  @@unique([sectionId, label])
+  @@index([sectionId])
+  @@index([status])
+}
+
+/// An event listing created by an organizer.
+model Event {
+  id          String   @id @default(cuid())
+  organizerId String
+  venueId     String
+  name        String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  status      EventStatus @default(DRAFT)
+  seatingKind SeatingKind @default(GENERAL_ADMISSION)
+  capacity    Int
+  currency    String   @default("KES")
+  imageUrl    String?
+  salesStartAt DateTime?
+  salesEndAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizer  Organizer    @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  venue      Venue        @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  ticketTypes TicketType[]
+  tickets    Ticket[]
+  orders     Order[]
+  promoCodes PromoCode[]
+
+  @@index([organizerId])
+  @@index([venueId])
+  @@index([status])
+  @@index([startsAt])
+}
+
+/// A purchasable ticket type/price tier for an event.
+model TicketType {
+  id        String   @id @default(cuid())
+  eventId   String
+  name      String
+  description String?
+  price     Decimal  @db.Decimal(10, 2)
+  quantityAvailable Int
+  quantitySold      Int      @default(0)
+  perOrderLimit     Int? // max tickets a single order may buy (null = no limit)
+  promoEligible     Boolean  @default(true) // whether promo codes may apply to this type
+  salesStartAt DateTime?
+  salesEndAt   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+
+  @@index([eventId])
+}
+
+/// A single issued ticket. `seat` is null for general-admission events.
+/// `qrSecret` and `uniqueId` are security-sensitive unique values.
+model Ticket {
+  id            String   @id @default(cuid())
+  eventId       String
+  orderId       String
+  ticketTypeId  String
+  seatId        String?  @unique
+  uniqueId      String   @unique // human-readable public ticket id (e.g. "EP-XXXX")
+  qrSecret      String   @unique // signed/random secret embedded in the QR code
+  status        TicketStatus @default(RESERVED)
+  price         Decimal  @db.Decimal(10, 2) // snapshot price paid
+  holderName    String?
+  holderEmail   String?
+  issuedAt      DateTime?
+  checkedInAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  event      Event      @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketType TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
+  seat       Seat?      @relation(fields: [seatId], references: [id], onDelete: SetNull)
+  checkIns   CheckIn[]
+
+  @@index([eventId])
+  @@index([orderId])
+  @@index([ticketTypeId])
+  @@index([status])
+}
+
+/// A purchase order for one event, containing one or more tickets.
+model Order {
+  id          String   @id @default(cuid())
+  orderNumber String   @unique // e.g. "EP-2026-000123"; idempotent reference for customers
+  userId      String
+  eventId     String
+  status      OrderStatus @default(PENDING)
+  totalAmount Decimal  @db.Decimal(10, 2)
+  currency    String   @default("KES")
+  expiresAt   DateTime? // hold expiry for reserved/pending orders
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  event     Event      @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  tickets   Ticket[]
+  payments  Payment[]
+  refunds   Refund[]
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([status])
+}
+
+/// A payment attempt for an order. `idempotencyKey` prevents double-charges.
+model Payment {
+  id             String   @id @default(cuid())
+  orderId        String
+  provider       PaymentProvider
+  status         PaymentStatus @default(PENDING)
+  amount         Decimal  @db.Decimal(10, 2)
+  currency       String   @default("KES")
+  idempotencyKey String   @unique // client/server generated; guarantees at-most-once processing
+  providerRef    String?  @unique // upstream ref (MPesa receipt / Stripe intent / card auth)
+  metadata       Json?
+  paidAt         DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  refunds Refund[]
+
+  @@index([orderId])
+  @@index([status])
+}
+
+/// A discount code scoped to an event.
+model PromoCode {
+  id            String   @id @default(cuid())
+  eventId       String
+  code          String   @unique // case-insensitive normalized coupon code
+  discountType  DiscountType @default(PERCENT)
+  discountValue Decimal  @db.Decimal(10, 2)
+  maxUses       Int?
+  timesUsed     Int      @default(0)
+  validFrom     DateTime?
+  validUntil    DateTime?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+/// A single check-in scan attempt. A ticket can be scanned many times; each
+/// attempt records its outcome (unless already VALID, which is a replay-proof
+/// single entry, recorded here for audit).
+model CheckIn {
+  id        String   @id @default(cuid())
+  ticketId  String
+  byUserId  String?
+  outcome   CheckInOutcome
+  scannedAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [byUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@index([byUserId])
+}
+
+/// A refund against a payment/order.
+model Refund {
+  id            String   @id @default(cuid())
+  paymentId     String
+  orderId       String
+  requestedById String
+  amount        Decimal  @db.Decimal(10, 2)
+  reason        String?
+  status        RefundStatus @default(PENDING)
+  refundRef     String?  @unique
+  createdAt     DateTime @default(now())
+  processedAt   DateTime?
+
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  requestedBy User  @relation("RefundRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+
+  @@index([paymentId])
+  @@index([orderId])
+  @@index([status])
+}
+
+/// An inbound notification/email/SMS for a user.
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      NotificationType @default(IN_APP)
+  title     String
+  body      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+}
+
+/// Append-only audit trail for sensitive actions (RBA, refunds, check-ins, admin).
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String // e.g. "order.created", "refund.approved", "role.changed"
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
